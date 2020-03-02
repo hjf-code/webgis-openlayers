@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>湄洲欢迎您!</title>
+    <link href="../lib/open-layers/5.3.0/ol.css" rel="stylesheet" type="text/css"/>
+    <link href="../lib/layui/2.5.6/css/layui.css" rel="stylesheet" type="text/css"/>
+    <style>
+        .custom-mouse-position {
+            position: absolute;
+            left: 5rem;
+            bottom: 0;
+            width: 13rem;
+        }
+
+        .modules {
+            position: absolute;
+            font-weight: bold;
+            color: #8A2BE2;
+            font-size: 16px;
+        }
+
+        .layui-form-onswitch {
+            border-color: #01AAED;
+            background-color: #01AAED;
+        }
+
+        .layui-select-title .layui-unselect, .layui-anim {
+            border-color: #01AAED !important;
+            background-color: #01AAED !important;
+            color: #fff;
+        }
+
+        .layui-form-select dl dd:hover {
+            border-color: #FFB800 !important;
+            background-color: #FFB800 !important;
+            color: #fff;
+        }
+
+        .layui-layer-title {
+            background: #663300 !important;
+            color: #FF9900 !important;
+            font: 30px bold !important;
+            padding: 0 !important;
+            text-align: center;
+        }
+    </style>
+</head>
+<body style="margin: 0; background: url('../img/bg.jpg') no-repeat fixed; background-size: 100% 100%;">
+<div id="map" style="position:absolute; width: 100%; height: 100%;"></div>
+<div id="img" style="display: none; height: 558px; width: 352px;">
+    <div id="bk" style="height: 410px; background-size: 100% 100%;"></div>
+    <div id="content" style="height: 148px; background: #663300; font-weight: bold; color: #FF9900; font-size: 16px;">
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span id="content1"></span>
+    </div>
+</div>
+<div class="modules" style="background: #393D49; top:0; left:0; width: 16rem; color: #FFB800; padding-top: 15px;">
+    <form class="layui-form" action="" lay-filter="form">
+        <div class="layui-form-item">
+            <label class="layui-form-label">妈祖雕像</label>
+            <div class="layui-input-block">
+                <input lay-filter="allSite" name="allSite" type="checkbox" lay-skin="switch" lay-text="显示|隐藏" checked>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">旅游景点</label>
+            <div class="layui-input-block">
+                <input lay-filter="allSpot" name="allSpot" type="checkbox" lay-skin="switch" lay-text="显示|隐藏" checked>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">下拉定位</label>
+            <div class="layui-input-block"
+                 style="width: 122px; font-weight: normal; font-size: 14px; color: #fff;">
+                <select lay-filter="features">
+                    <option value="1">金尊妈祖</option>
+                    <option value="2">红木妈祖</option>
+                    <option value="3">砗磲妈祖</option>
+                    <option value="4">翡翠妈祖</option>
+                    <option value="5">天后金身</option>
+                    <option value="6">妈祖金身</option>
+                    <option value="7">妈祖石雕</option>
+                    <option value="8">妈祖铜像</option>
+                    <option value="9">汉白玉妈祖</option>
+                    <option value="10">湄屿潮音</option>
+                    <option value="11">妈祖庙</option>
+                    <option value="12">天妃故里</option>
+                    <option value="13">黄金沙滩</option>
+                    <option value="14">妈祖影视城</option>
+                    <option value="15">鹅尾神石园</option>
+                </select>
+            </div>
+        </div>
+    </form>
+</div>
+<div id="currentZoom" class="modules" style="bottom:0.5rem; left:1rem;">当前层级:
+    <span>13</span>
+</div>
+<div id="currentCoordinate" class="modules" style="bottom: 0.5rem; right:14.5rem;">
+    当前坐标:
+</div>
+<script src="../lib/jquery/jquery-3.1.1.min.js" type="text/javascript"></script>
+<script src="../lib/layui/2.5.6/layui.all.js" type="text/javascript"></script>
+<script src="../lib/open-layers/5.3.0/ol.js" type="text/javascript"></script>
+<script>
+    /**
+     * layui的各个组件
+     */
+    layui.use(['form', 'layer'], function () {
+        let form = layui.form;
+        let layer = layui.layer;
+        // 特征类型为雕像
+        let siteFeature = 'site';
+        // 特征类型为景区
+        let spotFeature = 'spot';
+        let map = new ol.Map({
+            target: 'map',
+            layers: [
+                // 瓦片图层
+                new ol.layer.Tile({
+                    source: new ol.source.XYZ({
+                        // 高德矢量图(含路网, 含注记)
+                        // url: 'http://wprd0{1-4}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&lang=zh_cn&size=1&scl=1&style=7'
+                        // 高德矢量图(含路网, 不含注记)
+                        url: 'http://wprd0{1-4}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&lang=zh_cn&size=1&scl=2&style=7'
+                    }),
+                    // 指定可见边界: [minx, miny, maxx, maxy]
+                    extent: [119.094209, 25.019597, 119.162358, 25.103101]
+                }),
+                // 矢量标注图层
+                new ol.layer.Vector({
+                    source: new ol.source.Cluster({
+                        // 聚合的距离参数, 即当标注间距离小于此值时进行聚合, 单位是像素
+                        distance: 55,
+                        source: new ol.source.Vector({
+                            features: [
+                                getSiteFeature('1', '金尊妈祖', 119.147219, 25.088549),
+                                getSiteFeature('2', '红木妈祖', 119.14828, 25.091101),
+                                getSiteFeature('3', '砗磲妈祖', 119.147668, 25.088749),
+                                getSiteFeature('4', '翡翠妈祖', 119.145109, 25.090433),
+                                getSiteFeature('5', '天后金身', 119.14579, 25.086876),
+                                getSiteFeature('6', '妈祖金身', 119.147882, 25.091014),
+                                getSiteFeature('7', '妈祖石雕', 119.148267, 25.090273),
+                                getSiteFeature('8', '妈祖铜像', 119.138458, 25.088985),
+                                getSiteFeature('9', '汉白玉妈祖', 119.13827, 25.0895)
+                            ]
+                        })
+                    }),
+                    style: function (feature) {
+                        // 获取该要素所在聚合群的要素数量
+                        let features = feature.get('features');
+                        let size = features.length;
+                        let name = "妈祖雕像";
+                        if (size === 1) {
+                            name = features[0].get("name");
+                        } else {
+                            name += "(" + size + ")";
+                        }
+                        return getSiteStyle(name);
+                    }
+                }),
+                // 矢量多边形图层
+                new ol.layer.Vector({
+                    source: new ol.source.Vector({
+                        features: [
+                            getSpotFeature('10', '湄屿潮音', [
+                                [119.153543, 25.092413],
+                                [119.153833, 25.092831],
+                                [119.154198, 25.092715],
+                                [119.154498, 25.093113],
+                                [119.156354, 25.094308],
+                                [119.157921, 25.0932],
+                                [119.157706, 25.09286],
+                                [119.155732, 25.092792],
+                                [119.154209, 25.092248]
+                            ]),
+                            getSpotFeature('11', '妈祖祖庙', [
+                                [119.143887, 25.086408],
+                                [119.144424, 25.087438],
+                                [119.145111, 25.087244],
+                                [119.145819, 25.088857],
+                                [119.144338, 25.090509],
+                                [119.148415, 25.093463],
+                                [119.150775, 25.093035],
+                                [119.150732, 25.090198],
+                                [119.147449, 25.088196],
+                                [119.147449, 25.088196],
+                                [119.147728, 25.086739],
+                                [119.147042, 25.086661],
+                                [119.146248, 25.085553]
+                            ]),
+                            getSpotFeature('12', '天妃故里', [
+                                [119.138381, 25.087679],
+                                [119.139073, 25.087659],
+                                [119.138569, 25.090001],
+                                [119.137802, 25.089977]
+                            ]),
+                            getSpotFeature('13', '黄金沙滩', [
+                                [119.102386, 25.046248],
+                                [119.103748, 25.045908],
+                                [119.105561, 25.047852],
+                                [119.104853, 25.048105]
+                            ]),
+                            getSpotFeature('14', '妈祖影视城', [
+                                [119.130581, 25.042546],
+                                [119.132962, 25.044004],
+                                [119.13116, 25.045258],
+                                [119.129304, 25.043217]
+                            ]),
+                            getSpotFeature('15', '鹅尾神石园', [
+                                [119.119228, 25.028775],
+                                [119.125752, 25.029125],
+                                [119.128369, 25.0244],
+                                [119.119958, 25.022786],
+                                [119.118499, 25.02683]
+                            ])
+                        ]
+                    }),
+                    style: function (feature) {
+                        return getSpotStyle(feature.get("name"));
+                    }
+                })
+            ],
+            view: new ol.View({
+                // 中心点位
+                center: [119.128584, 25.063681],
+                // 指定坐标系为: WGS84
+                projection: 'EPSG:4326',
+                minZoom: 13,
+                maxZoom: 19,
+                // 初始层级
+                zoom: 13
+            }),
+            // 隐藏左上角的放大缩小按钮
+            controls: ol.control.defaults({attribution: false, zoom: false, rotate: false}).extend([
+                // 鼠标位置控件
+                new ol.control.MousePosition({
+                    // 坐标格式
+                    coordinateFormat: ol.coordinate.createStringXY(8),
+                    // 地图投影坐标系
+                    projection: 'EPSG:4326',
+                    // 坐标信息显示样式
+                    className: 'custom-mouse-position',
+                    // 显示鼠标位置信息的目标容器
+                    target: 'currentCoordinate',
+                    // 未定义坐标的标记
+                    undefinedHTML: '0.0, 0.0'
+                })
+            ])
+        });
+
+        /**
+         * 鼠标滚轮滚动事件, 实时刷新当前层级
+         */
+        $(document).on("mousewheel DOMMouseScroll", function () {
+            updateZoom();
+            // 由于获得当前层级有延迟, 故间隔500ms后再次刷新当前层级, 确保显示的是正确的层级
+            setTimeout(function () {
+                updateZoom();
+            }, 500);
+        });
+
+        // 显示/影藏所有标注点位
+        form.on('switch(allSite)', function (data) {
+            if (data.elem.checked) {
+                map.getLayers().getArray()[1].setVisible(true);
+            } else {
+                map.getLayers().getArray()[1].setVisible(false);
+            }
+        });
+
+        // 显示/影藏所有景点区域
+        form.on('switch(allSpot)', function (data) {
+            if (data.elem.checked) {
+                map.getLayers().getArray()[2].setVisible(true);
+            } else {
+                map.getLayers().getArray()[2].setVisible(false);
+            }
+        });
+
+        // 下拉框选择后定位雕像标注或景点区域
+        form.on('select(features)', function (data) {
+            let center = [0.0, 0.0];
+            let zoom = 19;
+            let value = data.value;
+            switch (value) {
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                    center = map.getLayers().getArray()[1].getSource().getSource().getFeatures()[value - 1].getGeometry().getFlatCoordinates();
+                    map.getLayers().getArray()[1].setVisible(true);
+                    form.val("form", {
+                        'allSite': true
+                    });
+                    break;
+                case '10':
+                case '11':
+                case '12':
+                case '13':
+                case '14':
+                case '15':
+                    let coordinates = map.getLayers().getArray()[2].getSource().getFeatures()[value - 10].getGeometry().getCoordinates()[0];
+                    center = ol.extent.getCenter(ol.extent.boundingExtent(coordinates));
+                    zoom = 16;
+                    map.getLayers().getArray()[2].setVisible(true);
+                    form.val("form", {
+                        'allSpot': true
+                    });
+                    break;
+                default:
+            }
+            let view = map.getView();
+            view.setCenter(center);
+            view.setZoom(zoom);
+            updateZoom();
+        });
+
+        /**
+         * 监听鼠标点击
+         */
+        map.on('click', function (event) {
+            map.forEachFeatureAtPixel(event.pixel, function (feature) {
+                let features = feature.get('features');
+                // 是否有多个feature, 若有说明是聚合
+                if (features) {
+                    // 是否为雕像
+                    if (features[0].get('type') === siteFeature) {
+                        if (features.length === 1) {
+                            let id = features[0].get("id");
+                            $("#bk").css("background", "url('../img/site" + id + ".jpg')");
+                            let content = "";
+                            if (id === '1') {
+                                content = "金尊妈祖为站立神像，头戴冕旒，身着霞帔，手执如意。高3.23米，底座0.99米，分别寓意妈祖于农历三月廿三日诞生，九月初九日羽化，共用黄金323公斤，总造价人民币1.07亿元，是全球第一大纯金妈祖神像！由广大妈祖信众捐铸，于2014年4月16日举行隆重的开光典礼，现供奉于顺济殿内。";
+                            } else if (id === '2') {
+                                content = "红木妈祖像重4吨，身高3.23米，底座0.99米，分别寓意妈祖于农历三月廿三日诞生，九月初九日羽化。脸部神态参考台湾鹿港天后宫妈祖的脸型而雕刻，头戴冕旒，手持灯笼，身披黄袍 。妈祖像身高和底座是一块完整的花梨木，连妈祖头饰也是直接雕刻出来的，无任何拼接，可谓“一气呵成”。现供奉于朝天阁内。";
+                            } else if (id === '3') {
+                                content = "砗磲(chē qú)妈祖全部由贝壳制作而成，是全世界最大的砗磲妈祖雕像。砗磲是海洋中最大的双壳贝类, 其本身所含的微量元素能稳定情绪、去除杂念、调养身心, 在“佛教七宝”中, 砗磲列驱邪避凶的首位。此尊砗磲妈祖像由323块砗磲组成，高3.23米，寓意妈祖于农历三月廿三日诞生。现供奉于祖庙妈祖文化展览馆内。";
+                            } else if (id === '4') {
+                                content = "翡翠妈祖神像端坐九龙椅上，头戴冕旒，身着龙袍，腰缠玉带，手持玉圭。像之通体翠绿，晶莹剔透。她安然慈祥，端庄典雅，散发出特有的神韵。坐像高1.33米，重1.6吨，价值2亿元人民币，为目前世界上最大最重的翡翠妈祖像。2013年6月25日举行隆重的开光典礼，现供奉于新殿宫门内。";
+                            } else if (id === '5') {
+                                content = "天后金身神像为泥塑妈祖雕像。神像高8米，神威显赫、雍容端庄；左右陪祀顺懿夫人（亦称临水夫人）陈靖姑和惠烈夫人钱四娘。2002年落成的天后殿为新殿建筑群之主殿，乃传统歇山顶双重檐建筑，九开间五进深，寓意“九五之尊”，高19米、台明宽50米、进深30米，室内建筑面积987平方米，可供千人同时朝拜。";
+                            } else if (id === '6') {
+                                content = "妈祖金身，又称“巡天妈祖”，“金身”不是用金铸造的，而是意味着妈祖其身“金贵”，其位“至尊”。因为世界上其他所有的妈祖雕像都是由该金身“分灵”出去的。在湄洲岛上有一个习俗，每年元宵节前，岛上信众会把这尊妈祖金身请到各家各户，虔诚膜拜，以求一年四季合境平安。 现供奉于妈祖祖庙寝殿神龛正中。";
+                            } else if (id === '7') {
+                                content = "妈祖石雕像矗立在祖庙山巅，是湄洲祖庙的标识，也是海峡西岸经济区的标志性建筑之一。雕像高14.35米，寓意妈祖诞生地湄洲岛面积14.35平方公里，由365块花岗岩雕成，寓意四海万民在妈祖保佑下，一年365天，天天吉祥平安。她头戴冕旒，身着霞帔，脚踏波涛，手抱如意；她脸朝台湾，翘首企盼，双眼炯炯，饱含深情。";
+                            } else if (id === '8') {
+                                content = "青年妈祖铜像，坐落于天妃故里遗址公园。铜像高9.60米，寓意妈祖诞生于960年。青年妈祖雕像从绘图、选材、选工艺师傅再到了解厂家资质，经历了不下十次的论证和考察，完成后的锡青铜材质的青年妈祖雕像重12.33吨。铜像亭亭玉立，右手高擎红灯，象征妈祖大爱如光，驱散灾难苦厄，悲怀似灯，化作慈航普渡。";
+                            } else if (id === '9') {
+                                content = "“世博”汉白玉妈祖，采用整块缅甸汉白玉雕成，高3.23米，重8吨，是迄今大陆地区最高最重的整块汉白玉妈祖雕像。2010年3月2日，由莆田运抵上海，安座世博园福建馆，为该馆最受关注的“镇馆”之宝，也是馆内一道最为亮丽的文化风景。于11月10日荣归故里湄洲岛，现供奉于天妃故里妈祖源流博物馆《序厅》内。";
+                            }
+                            $("#content1").text(content);
+                            // 具体某个雕像
+                            layer.open({
+                                type: 1, // 1表示页面层
+                                title: features[0].get("name"), //标题
+                                // closeBtn: 0, // 去掉关闭按钮
+                                shade: 0.6, // 遮罩层透明度
+                                shadeClose: true, // 点击遮罩关闭弹出层
+                                skin: 'layui-layer-lan', // 为弹出层增加样式
+                                area: ['352px', '600px'], // 宽高, 这里用黄金比例
+                                content: $("#img") // 页面层内容
+                            });
+                        } else {
+                            // 聚合多个雕像
+                            let names = "";
+                            for (let i = 0; i < features.length; i++) {
+                                names += ", " + features[i].get("name");
+                            }
+                            layer.msg("包含: " + names.substr(2));
+                        }
+                    }
+                }
+            });
+        });
+
+        /**
+         * 刷新当前层级
+         */
+        function updateZoom() {
+            $('#currentZoom').children(':first').text(map.getView().getZoom().toFixed(0));
+        }
+
+        /**
+         * 获得一个标注点位
+         * @param id ID
+         * @param name 标注名称
+         * @param x 经度
+         * @param y 纬度
+         */
+        function getSiteFeature(id, name, x, y) {
+            return new ol.Feature({
+                geometry: new ol.geom.Point([x, y]),
+                id: id,
+                name: name,
+                type: siteFeature
+            });
+        }
+
+        /**
+         * 获得一个多边形
+         * @param id ID
+         * @param name 标注名称
+         * @param xys 多边形各个端点坐标
+         */
+        function getSpotFeature(id, name, xys) {
+            return new ol.Feature({
+                geometry: new ol.geom.Polygon(
+                    [xys]
+                ),
+                id: id,
+                name: name,
+                type: spotFeature
+            });
+        }
+
+        /**
+         * 获得矢量标注样式
+         * @param name 标注名称
+         */
+        function getSiteStyle(name) {
+            return new ol.style.Style({
+                image: new ol.style.Icon({
+                    // 锚点
+                    anchor: [0.5, 40],
+                    // 锚点源
+                    anchorOrigin: 'top-right',
+                    // 锚点X值单位
+                    anchorXUnits: 'fraction',
+                    // 锚点Y值单位
+                    anchorYUnits: 'pixels',
+                    // 偏移原点
+                    offsetOrigin: 'top-right',
+                    opacity: 0.75,
+                    // 图标的URL
+                    src: '../img/feature.png'
+                }),
+                text: new ol.style.Text({
+                    // 位置
+                    textAlign: 'center',
+                    // 基准线
+                    textBaseline: 'top',
+                    // 文字样式
+                    font: 'normal 16px 微软雅黑',
+                    // 文本内容
+                    text: name,
+                    // 文本填充样式（即文字颜色)
+                    fill: new ol.style.Fill({
+                        color: '#9370DB'
+                    }),
+                    // 文字描边
+                    stroke: new ol.style.Stroke({
+                        color: '#FFD700',
+                        width: 2
+                    })
+                })
+            });
+        }
+
+        /**
+         * 获得区域样式
+         * @param name 区域名称
+         */
+        function getSpotStyle(name) {
+            return new ol.style.Style({
+                fill: new ol.style.Fill({               //填充样式
+                    color: 'rgba(46,139,87, 0.6)'
+                }),
+                stroke: new ol.style.Stroke({           // 线样式
+                    color: '#FFF',
+                    width: 1
+                }),
+                text: new ol.style.Text({
+                    // 是否允许文字显示在超出区域的范围
+                    overflow: true,
+                    font: 'normal 26px 微软雅黑',
+                    // 文本内容
+                    text: name,
+                    // 文本填充样式（即文字颜色)
+                    fill: new ol.style.Fill({
+                        color: '#FFD700'
+                    }),
+                    // 文字描边
+                    stroke: new ol.style.Stroke({
+                        color: '#9370DB',
+                        width: 2
+                    })
+                })
+            });
+        }
+    });
+</script>
+</body>
+</html>
